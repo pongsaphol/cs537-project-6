@@ -78,9 +78,10 @@ int init_server() {
 	if (fd < 0)
 		perror("open");
   
-  fseek(fd, 0, SEEK_END);
-  int shm_size = ftell(fd);
-  fseek(fd, 0, SEEK_SET);
+  struct stat sb;
+  fstat(fd, &sb);
+
+  int shm_size = sb.st_size;
 
 	char *mem = mmap(NULL, shm_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0);
 	if (mem == (void *)-1) 
@@ -133,7 +134,7 @@ void *thread_function(void *arg) {
       bd->v = value;
     }
     bd->ready = 1;
-    *(shmem_area + bd->res_off) = bd;
+    memcpy(shmem_area + bd->res_off, bd, sizeof(struct buffer_descriptor));
   }
 }
 
