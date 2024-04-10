@@ -14,7 +14,6 @@
 #include "common.h"
 #include "kv_store.h"
 
-
 list* hash_table;
 int table_size;
 int num_threads;
@@ -55,7 +54,6 @@ value_type get(key_type key) {
   while (current != NULL) {
     if (current->k == key) {
       value_type value = current->v;
-      pthread_mutex_unlock(&hash_table[bucket].glock);
       return value;
     }
     current = current->next;
@@ -90,21 +88,15 @@ int init_server() {
 	/* mmap dups the fd, no longer needed */
 	close(fd);
 
-	memset(mem, 0, shm_size);
+	// memset(mem, 0, shm_size);
 	ring = (struct ring *)mem;
 	shmem_area = mem;
-	int ring_rc = -1;
-	if (ring_rc = init_ring(ring) < 0) {
-		printf("Ring initialization failed with %d as return code\n", ring_rc);
-		exit(EXIT_FAILURE);
-	}
+
 }
 
 
 
-static int parse_args(int argc, char **argv)
-{
-
+static int parse_args(int argc, char **argv) {
 	int op;
 	while ((op = getopt(argc, argv, "hn:w:vt:s:fce:i:")) != -1) {
 		switch(op) {									           
@@ -125,21 +117,22 @@ static int parse_args(int argc, char **argv)
 
 void *thread_function(void *arg) {
   while (true) {
-    struct buffer_descriptor *bd;
-    ring_get(ring, bd);
-    if (bd->req_type == PUT) {
-      put(bd->k, bd->v);
+    struct buffer_descriptor bd;
+    ring_get(ring, &bd);
+    if (bd.req_type == PUT) {
+      put(bd.k, bd.v);
     } else {
-      value_type value = get(bd->k);
-      bd->v = value;
+      value_type value = get(bd.k);
+      bd.v = value;
     }
-    bd->ready = 1;
-    memcpy(shmem_area + bd->res_off, bd, sizeof(struct buffer_descriptor));
+    bd.ready = 1;
+    memcpy(shmem_area + bd.res_off, &bd, sizeof(struct buffer_descriptor));
   }
 }
 
 void start_threads() {
   pthread_t threads[num_threads];
+  // printf("THREADS: %d\n", num_threads);
   for (int i = 0; i < num_threads; i++) {
     pthread_create(&threads[i], NULL, thread_function, NULL);
   }

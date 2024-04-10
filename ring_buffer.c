@@ -1,4 +1,6 @@
 #include "ring_buffer.h"
+#include <stdio.h>
+#include <sys/types.h>
 
 static __inline int
 atomic_cmpset_int(volatile uint32_t *dst, uint32_t expect, uint32_t src)
@@ -39,8 +41,9 @@ int init_ring(struct ring *r) {
  * guaranteed to be valid during the invocation of the function
 */
 void ring_submit(struct ring *r, struct buffer_descriptor *bd) {
-  uint32_t c_tail, p_head, p_next;
+  uint32_t c_tail, p_head, p_next, status;
   do {
+    status = 0;
     c_tail = r->c_tail;
     p_head = r->p_head;
     p_next = (p_head + 1) % RING_SIZE;
@@ -48,14 +51,16 @@ void ring_submit(struct ring *r, struct buffer_descriptor *bd) {
       // ring is full, sleep
       continue;
     }
-  } while (atomic_cmpset_int(&r->p_head, p_head, p_next) == 0);
+    status = atomic_cmpset_int(&r->p_head, p_head, p_next);
+  } while (status == 0);
+
 
   r->buffer[p_head] = *bd;
 
-  while (r->p_head != p_head) {
+  while (r->p_tail != p_head) {
     // wait for the producer to finish
   }
-  r->p_tail = p_next;
+  atomic_cmpset_int(&r->p_tail, r->p_tail, p_next);
 }
 
 /*
@@ -67,8 +72,9 @@ void ring_submit(struct ring *r, struct buffer_descriptor *bd) {
  * the signature.
 */
 void ring_get(struct ring *r, struct buffer_descriptor *bd) {
-  uint32_t c_head, p_tail, c_next;
+  uint32_t c_head, p_tail, c_next, status;
   do {
+    status = 0;
     c_head = r->c_head;
     p_tail = r->p_tail;
     c_next = (c_head + 1) % RING_SIZE;
@@ -76,14 +82,11 @@ void ring_get(struct ring *r, struct buffer_descriptor *bd) {
       // ring is empty, sleep
       continue;
     }
-    *bd = r->buffer[c_head];
-  } while (atomic_cmpset_int(&r->c_head, c_head, c_next) == 0);
-  while (r->c_head != c_head) {
-    // wait for the consumer to finish
-  }
+    status = atomic_cmpset_int(&r->c_head, c_head, c_next);
+  } while (status == 0);
   *bd = r->buffer[c_head];
   while (r->c_tail != c_head) {
     // wait for the consumer to finish
   }
-  r->c_tail = c_next;
+  atomic_cmpset_int(&r->c_tail, r->c_tail, c_next);
 }
