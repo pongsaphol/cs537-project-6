@@ -2,23 +2,6 @@
 #include <stdio.h>
 #include <sys/types.h>
 
-static __inline int
-atomic_cmpset_int(volatile uint32_t *dst, uint32_t expect, uint32_t src)
-{
-	unsigned char res;
-
-	__asm __volatile(
-	"	" "lock; " "		"
-	"	cmpxchgl %3,%1 ;	"
-	"       sete	%0 ;		"
-	"# atomic_cmpset_int"
-	: "=q" (res),			/* 0 */
-	  "+m" (*dst),			/* 1 */
-	  "+a" (expect)			/* 2 */
-	: "r" (src)			/* 3 */
-	: "memory", "cc");
-	return (res);
-}
 /*
  * Initialize the ring
  * @param r A pointer to the ring
@@ -51,7 +34,7 @@ void ring_submit(struct ring *r, struct buffer_descriptor *bd) {
       // ring is full, sleep
       continue;
     }
-    status = atomic_cmpset_int(&r->p_head, p_head, p_next);
+    status = __sync_bool_compare_and_swap(&r->p_head, p_head, p_next);
   } while (status == 0);
 
 
@@ -60,7 +43,7 @@ void ring_submit(struct ring *r, struct buffer_descriptor *bd) {
   while (r->p_tail != p_head) {
     // wait for the producer to finish
   }
-  atomic_cmpset_int(&r->p_tail, r->p_tail, p_next);
+  __sync_bool_compare_and_swap(&r->p_tail, r->p_tail, p_next);
 }
 
 /*
