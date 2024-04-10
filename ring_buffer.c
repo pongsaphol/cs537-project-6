@@ -65,11 +65,11 @@ void ring_get(struct ring *r, struct buffer_descriptor *bd) {
       // ring is empty, sleep
       continue;
     }
-    status = atomic_cmpset_int(&r->c_head, c_head, c_next);
+    status = __sync_bool_compare_and_swap(&r->c_head, c_head, c_next);
   } while (status == 0);
   *bd = r->buffer[c_head];
   while (r->c_tail != c_head) {
     // wait for the consumer to finish
   }
-  atomic_cmpset_int(&r->c_tail, r->c_tail, c_next);
+  __sync_bool_compare_and_swap(&r->c_tail, r->c_tail, c_next);
 }
