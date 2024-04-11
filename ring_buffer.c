@@ -43,7 +43,7 @@ void ring_submit(struct ring *r, struct buffer_descriptor *bd) {
   while (r->p_tail != p_head) {
     // wait for the producer to finish
   }
-  __sync_bool_compare_and_swap(&r->p_tail, r->p_tail, p_next);
+  r->p_tail = p_next;
 }
 
 /*
@@ -71,5 +71,5 @@ void ring_get(struct ring *r, struct buffer_descriptor *bd) {
   while (r->c_tail != c_head) {
     // wait for the consumer to finish
   }
-  __sync_bool_compare_and_swap(&r->c_tail, r->c_tail, c_next);
+  r->c_tail = c_next;
 }
