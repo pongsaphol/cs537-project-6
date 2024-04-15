@@ -2,6 +2,10 @@
 #include <stdio.h>
 #include <sys/types.h>
 
+static inline void cpu_spinwait(void) {
+  sched_yield();  
+}
+
 /*
  * Initialize the ring
  * @param r A pointer to the ring
@@ -32,6 +36,7 @@ void ring_submit(struct ring *r, struct buffer_descriptor *bd) {
     p_next = (p_head + 1) % RING_SIZE;
     if (c_tail == p_next) {
       // ring is full, sleep
+      cpu_spinwait();
       continue;
     }
     status = __sync_bool_compare_and_swap(&r->p_head, p_head, p_next);
@@ -42,6 +47,7 @@ void ring_submit(struct ring *r, struct buffer_descriptor *bd) {
 
   while (r->p_tail != p_head) {
     // wait for the producer to finish
+    cpu_spinwait();
   }
   r->p_tail = p_next;
 }
@@ -63,6 +69,7 @@ void ring_get(struct ring *r, struct buffer_descriptor *bd) {
     c_next = (c_head + 1) % RING_SIZE;
     if (c_head == p_tail) {
       // ring is empty, sleep
+      cpu_spinwait();
       continue;
     }
     status = __sync_bool_compare_and_swap(&r->c_head, c_head, c_next);
@@ -70,6 +77,7 @@ void ring_get(struct ring *r, struct buffer_descriptor *bd) {
   *bd = r->buffer[c_head];
   while (r->c_tail != c_head) {
     // wait for the consumer to finish
+    cpu_spinwait();
   }
   r->c_tail = c_next;
 }
